@@ -1,0 +1,24 @@
+{
+  "experiment": "Exp 6 - coarse 3-class age probe (Russian only)",
+  "features": "layers_wavlm-base-plus.npy (Russian, all bins, 6 s clips)",
+  "scheme": "coarse3",
+  "classes": ["young", "adult", "older"],
+  "n_clips": 5478,
+  "n_speakers": 1215,
+  "speakers_per_class": {"adult": 1014, "young": 170, "older": 31},
+  "cv": "StratifiedGroupKFold(5) on train+val speakers",
+  "majority_macro_f1_dev": 0.304,
+  "age_f1_by_layer": [0.382, 0.388, 0.379, 0.397, 0.417, 0.411, 0.413, 0.403, 0.400, 0.403, 0.388, 0.392, 0.399],
+  "gender_f1_by_layer": [0.935, 0.954, 0.960, 0.958, 0.957, 0.954, 0.954, 0.945, 0.941, 0.936, 0.935, 0.942, 0.932],
+  "best_age_layer": 4,
+  "best_age_f1": 0.417,
+  "best_age_f1_std": 0.029,
+  "by_gender_at_best_layer": {"male": {"n_clips": 3285, "macro_f1": 0.424}, "female": {"n_clips": 1103, "macro_f1": 0.403}},
+  "test_split_at_best_layer": {
+    "clip_macro_f1": 0.3794, "speaker_macro_f1": 0.3936, "majority_macro_f1": 0.3006,
+    "per_class_f1": {"young": 0.310, "adult": 0.828, "older": 0.000},
+    "n_test_clips": 1090, "n_test_speakers": 243, "older_test_speakers": 3,
+    "confusion_matrix": [[62, 116, 2], [155, 723, 17], [3, 12, 0]]
+  },
+  "conclusion": "older class unlearnable at 31 speakers; young/adult boundary (teens vs twenties) inaudible"
+}

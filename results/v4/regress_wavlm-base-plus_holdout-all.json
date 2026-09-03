@@ -1,0 +1,23 @@
+{
+  "experiment": "Exp 10 - leave-one-language-out transfer",
+  "features": "layers_wavlm-base-plus.npy (V4 set)", "layer": 5, "balanced": false,
+  "mode": "train on the other two languages (all splits), test on every speaker of the held-out language",
+  "in_language_reference": {"speaker_mae": 8.23, "spearman": 0.842},
+  "held_out": [
+    {"held_out": "ca", "n_train_speakers": 1785, "n_test_speakers": 1385, "n_test_clips": 5392,
+     "clip": {"mae": 11.40, "median_ae": 10.05, "pearson_r": 0.720, "spearman_rho": 0.733},
+     "speaker": {"mae": 10.73, "median_ae": 9.62, "pearson_r": 0.797, "spearman_rho": 0.814},
+     "baseline_mae_predict_mean": 17.82, "mae_by_gender": {"female": 11.75, "male": 11.06},
+     "mean_pred_by_true_bin": {"teens": 28.7, "twenties": 35.0, "thirties": 39.7, "fourties": 44.1, "fifties": 47.9, "sixties": 51.6, "seventies": 56.0, "eighties": 59.9}},
+    {"held_out": "de", "n_train_speakers": 2037, "n_test_speakers": 1138, "n_test_clips": 4206,
+     "clip": {"mae": 11.38, "median_ae": 9.66, "pearson_r": 0.692, "spearman_rho": 0.694},
+     "speaker": {"mae": 10.62, "median_ae": 8.95, "pearson_r": 0.761, "spearman_rho": 0.766},
+     "baseline_mae_predict_mean": 15.41, "mae_by_gender": {"female": 10.98, "male": 11.68},
+     "mean_pred_by_true_bin": {"teens": 25.0, "twenties": 27.3, "thirties": 31.6, "fourties": 37.7, "fifties": 40.9, "sixties": 47.9, "seventies": 54.5, "eighties": 63.4}},
+    {"held_out": "ru", "n_train_speakers": 2522, "n_test_speakers": 652, "n_test_clips": 2466,
+     "clip": {"mae": 9.28, "median_ae": 7.47, "pearson_r": 0.513, "spearman_rho": 0.493},
+     "speaker": {"mae": 8.14, "median_ae": 6.52, "pearson_r": 0.594, "spearman_rho": 0.570},
+     "baseline_mae_predict_mean": 14.91, "mae_by_gender": {"female": 8.61, "male": 9.69},
+     "mean_pred_by_true_bin": {"teens": 28.8, "twenties": 29.7, "thirties": 35.6, "fourties": 42.4, "fifties": 48.3, "sixties": 51.9}}
+  ]
+}

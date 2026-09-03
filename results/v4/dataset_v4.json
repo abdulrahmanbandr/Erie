@@ -1,0 +1,20 @@
+{
+  "source": "Common Voice 21.0 (fsicoli/common_voice_21_0 mirror)",
+  "languages": ["ca", "de", "ru"],
+  "selection": "<=100 speakers per (language, age bin, gender); 4 clips per speaker; speakers with inconsistent labels dropped; clips truncated to 6 s",
+  "seed": 42,
+  "per_language": {
+    "ca": {"speakers": 1385, "clips": 5392, "dropped_inconsistent": 49},
+    "de": {"speakers": 1138, "clips": 4206, "dropped_inconsistent": 18},
+    "ru": {"speakers": 652, "clips": 2466, "dropped_inconsistent": 7}
+  },
+  "total": {"speakers": 3169, "clips": 12064},
+  "speakers_per_bin": {"twenties": 599, "thirties": 562, "fourties": 490, "teens": 484, "fifties": 421, "sixties": 362, "seventies": 233, "eighties": 14, "nineties": 4},
+  "split": {
+    "method": "GroupShuffleSplit on client_id; 65% train / 15% val / 20% test by speaker",
+    "train": {"speakers": 2059, "clips": 7821},
+    "val": {"speakers": 476, "clips": 1818},
+    "test": {"speakers": 634, "clips": 2425},
+    "speakers_by_language_and_split": {"ca": {"train": 885, "val": 209, "test": 291}, "de": {"train": 751, "val": 156, "test": 230}, "ru": {"train": 423, "val": 111, "test": 113}}
+  }
+}

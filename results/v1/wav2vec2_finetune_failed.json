@@ -1,0 +1,45 @@
+{
+  "task": "age_4class_ru",
+  "model": "facebook/wav2vec2-base",
+  "approach": "partial fine-tuning (feature encoder frozen)",
+  "status": "failed_to_converge",
+  "configs_tried": [
+    {
+      "lr": "3e-5",
+      "epochs": 1,
+      "fp16": true,
+      "macro_f1": 0.1599
+    },
+    {
+      "lr": "5e-5",
+      "epochs": 8,
+      "fp16": true,
+      "macro_f1": 0.1599
+    },
+    {
+      "lr": "1e-4",
+      "epochs": 5,
+      "fp16": false,
+      "macro_f1": 0.1599
+    },
+    {
+      "lr": "1e-4",
+      "epochs": 3,
+      "mask_and_layerdrop": 0.0,
+      "macro_f1": 0.1599
+    }
+  ],
+  "diagnosis": {
+    "val_loss": 1.2124,
+    "class_distribution_entropy": 1.2158,
+    "interpretation": "model converged to class prior only",
+    "overfit_test_50_samples": {
+      "start": 1.177,
+      "end": 0.016,
+      "passed": true
+    },
+    "note": "reported train_loss inflated 2x by gradient_accumulation_steps"
+  },
+  "conclusion": "Pipeline verified sound. 95M params insufficient signal at 1,184 speakers.",
+  "superseded": "Conclusion revised in V2: failure caused by last-layer pooling, shared learning rate and class prior, not data scale. See docs/EXPERIMENT_LOG.md Exp 2 and Exp 4, and results/v2/summary.json."
+}

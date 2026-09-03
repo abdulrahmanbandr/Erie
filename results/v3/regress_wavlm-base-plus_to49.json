@@ -1,0 +1,23 @@
+{
+  "experiment": "Exp 7 - age regression, Russian only, ages 13-49",
+  "features": "layers_wavlm-base-plus.npy (Russian)",
+  "target": {"teens": 16.0, "twenties": 25.0, "thirties": 35.0, "fourties": 45.0},
+  "balanced": false,
+  "n_clips": 5333, "n_speakers": 1184,
+  "speakers_per_bin": {"twenties": 570, "thirties": 329, "teens": 170, "fourties": 115},
+  "cv": "StratifiedGroupKFold(5) on train+val speakers, stratified by bin",
+  "mae_by_layer": [6.63, 6.53, 6.37, 6.17, 5.93, 5.93, 5.85, 5.92, 6.03, 6.10, 6.10, 6.10, 6.08],
+  "cv_baseline_predict_mean": 6.97,
+  "best_layer": 6, "best_cv_mae": 5.85,
+  "test_split_at_best_layer": {
+    "clip": {"mae": 5.97, "median_ae": 5.28, "pearson_r": 0.444, "spearman_rho": 0.432},
+    "speaker": {"mae": 5.69, "median_ae": 4.75, "pearson_r": 0.534, "spearman_rho": 0.527},
+    "baseline_mae_predict_mean": 6.92,
+    "mae_by_gender": {"female": 5.90, "male": 5.99},
+    "mae_by_true_bin": {"teens": 9.60, "twenties": 4.16, "thirties": 5.15, "fourties": 12.07},
+    "mean_pred_by_true_bin": {"teens": 25.6, "twenties": 27.9, "thirties": 30.3, "fourties": 32.9},
+    "rebinned_4class_macro_f1": 0.307, "rebinned_within_one_bin_acc": 0.961,
+    "n_test_clips": 1075, "n_test_speakers": 240, "ridge_alpha": 432.9
+  },
+  "conclusion": "correct ordering but predictions squeezed into 25-33; age tails missing from the training data"
+}

@@ -1,0 +1,73 @@
+{
+  "task": "age_4class_ru",
+  "classes": ["teens", "twenties", "thirties", "fourties"],
+  "split": {
+    "method": "GroupShuffleSplit on client_id, seed 42; test 20% of speakers, val 15%, train 65%",
+    "train": {"clips": 3456, "speakers": 769},
+    "val": {"clips": 788, "speakers": 178},
+    "test": {"clips": 1089, "speakers": 237}
+  },
+  "clip_seconds_max": 6,
+  "layer_probe": {
+    "cv": "StratifiedGroupKFold(5) on train+val speakers",
+    "classifier": "StandardScaler + LogisticRegression(balanced)",
+    "pooling": "mean over time of each layer's hidden states",
+    "age_macro_f1_by_layer": {
+      "facebook/wav2vec2-base": [0.301, 0.309, 0.327, 0.332, 0.332, 0.333, 0.321, 0.323, 0.308, 0.312, 0.322, 0.295, 0.303],
+      "microsoft/wavlm-base-plus": [0.290, 0.306, 0.326, 0.337, 0.349, 0.345, 0.363, 0.341, 0.318, 0.307, 0.307, 0.321, 0.329],
+      "openai/whisper-base": [0.294, 0.303, 0.323, 0.339, 0.338, 0.317, 0.324]
+    },
+    "gender_macro_f1_by_layer": {
+      "facebook/wav2vec2-base": [0.939, 0.955, 0.959, 0.966, 0.966, 0.956, 0.954, 0.952, 0.955, 0.954, 0.960, 0.952, 0.941],
+      "microsoft/wavlm-base-plus": [0.946, 0.959, 0.961, 0.961, 0.961, 0.959, 0.954, 0.949, 0.947, 0.939, 0.938, 0.945, 0.939],
+      "openai/whisper-base": [0.937, 0.954, 0.960, 0.956, 0.957, 0.954, 0.948]
+    },
+    "best_age_layer": {
+      "facebook/wav2vec2-base": {"layer": 5, "macro_f1": 0.333, "std": 0.019},
+      "microsoft/wavlm-base-plus": {"layer": 6, "macro_f1": 0.363, "std": 0.017},
+      "openai/whisper-base": {"layer": 3, "macro_f1": 0.339, "std": 0.032}
+    },
+    "age_by_gender_at_best_layer": {
+      "facebook/wav2vec2-base": {"male": 0.333, "female": 0.334},
+      "microsoft/wavlm-base-plus": {"male": 0.374, "female": 0.331}
+    }
+  },
+  "finetune_runs": [
+    {
+      "tag": "w2v2_age_head", "model": "facebook/wav2vec2-base",
+      "classes": ["teens", "twenties", "thirties", "fourties"],
+      "freeze_encoder": true, "use_weighted_layer_sum": true, "class_weighted_loss": true,
+      "lr": 0.001, "epochs": 8, "precision": "fp32",
+      "best_val_f1": 0.375, "test_f1_macro": 0.384,
+      "val_by_epoch": {"loss": [1.338, 1.336, 1.344, 1.335, 1.333, 1.378, 1.344, 1.338],
+                       "f1": [0.278, 0.326, 0.332, 0.323, 0.367, 0.343, 0.364, 0.375]}
+    },
+    {
+      "tag": "w2v2_age_full", "model": "facebook/wav2vec2-base", "init_from": "w2v2_age_head",
+      "classes": ["teens", "twenties", "thirties", "fourties"],
+      "freeze_encoder": false, "use_weighted_layer_sum": true, "class_weighted_loss": true,
+      "lr": 2e-05, "epochs": 15, "early_stopped_after": 7, "precision": "fp32",
+      "best_val_f1": 0.381, "best_epoch": 3, "test_f1_macro": 0.388,
+      "val_by_epoch": {"loss": [1.390, 1.556, 1.570, 1.925, 2.155, 2.421, 3.039],
+                       "f1": [0.366, 0.320, 0.381, 0.361, 0.359, 0.371, 0.333]},
+      "note": "train loss 1.94 -> 0.19 while val loss rises: memorization, no generalization gain over head-only"
+    },
+    {
+      "tag": "w2v2_bin_head", "model": "facebook/wav2vec2-base",
+      "classes": ["teens", "fourties"],
+      "freeze_encoder": true, "lr": 0.001, "epochs": 8, "precision": "fp32",
+      "best_val_f1": 0.722, "test_f1_macro": 0.698,
+      "n_train_clips": 851, "n_val_clips": 187, "n_test_clips": 246
+    },
+    {
+      "tag": "w2v2_bin_full", "model": "facebook/wav2vec2-base", "init_from": "w2v2_bin_head",
+      "classes": ["teens", "fourties"],
+      "freeze_encoder": false, "lr": 2e-05, "epochs": 15, "early_stopped_after": 7, "precision": "fp32",
+      "best_val_f1": 0.801, "best_epoch": 4, "test_f1_macro": 0.778
+    }
+  ],
+  "notes": [
+    "Probe scores are 5-fold CV over 947 train+val speakers; fine-tune scores are a single 237-speaker test split. Not the same speakers; treat differences under ~0.03 as noise.",
+    "WavLM fine-tune crashed (12 vs 13 hidden states): layerdrop must be 0 with use_weighted_layer_sum in transformers 5. Fixed in src/finetune.py, not yet re-run."
+  ]
+}

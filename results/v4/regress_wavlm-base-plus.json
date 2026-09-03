@@ -1,0 +1,24 @@
+{
+  "experiment": "Exp 8 - age regression, Catalan + German + Russian, all ages (final model)",
+  "features": "layers_wavlm-base-plus.npy (V4 set)",
+  "model": "StandardScaler + RidgeCV on mean-pooled WavLM-base-plus hidden states",
+  "target": "age-bin midpoint: teens 16, twenties 25, thirties 35, fourties 45, fifties 55, sixties 65, seventies 75, eighties 85, nineties 92",
+  "balanced": false,
+  "n_clips": 12064, "n_speakers": 3169,
+  "cv": "StratifiedGroupKFold(5) on train+val speakers, stratified by bin",
+  "mae_by_layer": [12.09, 11.44, 10.86, 10.09, 9.58, 9.32, 9.35, 9.78, 10.32, 10.50, 10.48, 10.58, 10.73],
+  "cv_baseline_predict_mean": 15.82,
+  "best_layer": 5, "best_cv_mae": 9.32, "best_cv_mae_std": 0.22,
+  "test_split_at_best_layer": {
+    "clip": {"mae": 9.23, "median_ae": 7.83, "pearson_r": 0.777, "spearman_rho": 0.788},
+    "speaker": {"mae": 8.23, "median_ae": 7.22, "pearson_r": 0.833, "spearman_rho": 0.842},
+    "baseline_mae_predict_mean": 16.19,
+    "mae_by_gender": {"female": 9.02, "male": 9.42},
+    "mae_by_lang": {"ca": 9.73, "de": 9.24, "ru": 7.88},
+    "mae_by_true_bin": {"teens": 11.27, "twenties": 8.15, "thirties": 6.77, "fourties": 7.25, "fifties": 8.88, "sixties": 11.08, "seventies": 13.03, "eighties": 13.43},
+    "mean_pred_by_true_bin": {"teens": 26.3, "twenties": 30.3, "thirties": 36.4, "fourties": 43.7, "fifties": 49.3, "sixties": 55.6, "seventies": 62.9, "eighties": 71.6},
+    "rebinned_4class_macro_f1": 0.416, "rebinned_within_one_bin_acc": 0.871,
+    "n_test_clips": 2425, "n_test_speakers": 634, "ridge_alpha": 432.9
+  },
+  "note": "eighties (14 speakers) and nineties (4) are too small to interpret; nineties omitted above"
+}

@@ -1,0 +1,16 @@
+{
+  "experiment": "Exp 9 - as Exp 8 with inverse-bin-frequency sample weights (not adopted)",
+  "balanced": true,
+  "mae_by_layer": [13.58, 12.26, 11.58, 10.81, 10.15, 9.77, 9.80, 10.32, 10.95, 11.14, 11.09, 11.16, 11.39],
+  "best_layer": 5, "best_cv_mae": 9.77,
+  "test_split_at_best_layer": {
+    "clip": {"mae": 9.57, "median_ae": 8.14, "pearson_r": 0.765, "spearman_rho": 0.774},
+    "speaker": {"mae": 8.33, "median_ae": 7.08, "pearson_r": 0.827, "spearman_rho": 0.834},
+    "mae_by_gender": {"female": 9.34, "male": 9.77},
+    "mae_by_lang": {"ca": 10.00, "de": 9.48, "ru": 8.62},
+    "mae_by_true_bin": {"teens": 12.85, "twenties": 9.34, "thirties": 7.94, "fourties": 8.06, "fifties": 8.54, "sixties": 9.95, "seventies": 10.24, "eighties": 11.11},
+    "mean_pred_by_true_bin": {"teens": 27.5, "twenties": 31.1, "thirties": 37.3, "fourties": 45.4, "fifties": 51.8, "sixties": 58.6, "seventies": 66.8, "eighties": 75.4},
+    "rebinned_4class_macro_f1": 0.388, "n_test_clips": 2425, "n_test_speakers": 634
+  },
+  "conclusion": "older bins improve, teens and twenties degrade, overall slightly worse; plain model kept"
+}
