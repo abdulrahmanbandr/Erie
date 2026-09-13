@@ -25,6 +25,20 @@ correctly across the whole range; the very young and very old are pulled
 toward the middle, which is the usual regression behaviour and is
 partly a labelling artefact (Common Voice teens are mostly 17 to 19).
 
+## Use the model
+
+The fitted model ships with the repo. Scoring a recording needs no training data:
+
+```bash
+pip install -r requirements.txt
+python src/predict.py my_clip.wav        # any format: wav, mp3, m4a, opus, flac
+```
+
+The WavLM encoder (380 MB) downloads on first use. The clip is scored in
+6-second windows and the windows are averaged; ten seconds or more of
+speech gives the steadiest estimate. Output is age in years and the
+probability that the speaker is female. Typical age error is about 8 years.
+
 ## Method
 
 **Representation.** Mean-pooled hidden states from a frozen
@@ -80,6 +94,55 @@ in `docs/EXPERIMENT_LOG.md`; the short version:
 | V3 | Age regression, Russian only | 5.7 years MAE but predictions squeezed into 25 to 33 | Same cause |
 | V4 | Catalan + German + Russian, balanced | 8.2 years MAE, full range, transfers to unseen languages | Fix the data first |
 
+## Figures
+
+**Data**
+
+| | |
+|---|---|
+| ![](results/figures/data_language_audit.png) | ![](results/figures/data_russian_vs_v4.png) |
+| Label audit of eight languages: Catalan is the only corpus with both sexes in every decade and a large 50+ population. | What Russian lacked (31 speakers over fifty) and what the V4 set looks like. |
+
+![](results/figures/data_v4_cells.png)
+
+Speakers per language, age bin and gender after the cap of 100 per cell.
+
+**Pipeline**
+
+![](results/figures/pipeline.png)
+
+**Where age lives in the encoders (V2)**
+
+![](results/figures/v2_layer_curves_all.png)
+
+Age peaks in the middle layers of every model and drops at the top; gender is near-perfect at every layer.
+
+**Fine-tuning after the fix (V2)**
+
+![](results/figures/v2_finetune_curves.png)
+
+**The coarse-class dead end (V3)**
+
+| | |
+|---|---|
+| ![](results/figures/v3_coarse3_confusion.png) | ![](results/figures/v3_regress_wavlm.png) |
+| Three classes on Russian: older is unlearnable at 31 speakers, young is confused with adult at the teens/twenties border. | Regression on Russian: better than the mean, but the tails are missing. |
+
+**Final results (V4)**
+
+![](results/figures/v4_error_breakdown.png)
+
+| | |
+|---|---|
+| ![](results/figures/v4_regress_wavlm.png) | ![](results/figures/v4_holdout_language.png) |
+| Per-layer cross-validation error; layer 5 is best. | Error on a language the model never saw, against the predict-the-mean baseline. |
+
+**Across the project**
+
+![](results/figures/progression.png)
+
+Left: every route to decade classification lands at 0.33 to 0.42. Right: age as a number, error and reduction against the baseline, from Russian-only to the multilingual model and its transfer tests.
+
 ## Reproduce
 
 ```bash
@@ -101,6 +164,9 @@ python src/regress_age.py --features layers_wavlm-base-plus.npy --splits splits_
 python src/probe_layers.py --features layers_wavlm-base-plus.npy --splits splits_v4.csv --scheme fine4
 ```
 
+# 5. fit and save the final model that predict.py uses
+python src/train_final.py
+
 Steps 2 and 3 take about 20 minutes on a T4. Step 1 is dominated by
 the download. The V1 pipeline (`extract_embeddings.py`,
 `train_baseline.py`) and the fine-tuning script (`finetune.py`) are
@@ -115,6 +181,9 @@ kept for the earlier experiments.
 | `src/make_splits.py` | Speaker-disjoint train / val / test split |
 | `src/cache_audio.py` | Decode clips once to a cache |
 | `src/extract_layers.py` | Mean-pooled hidden states from every layer of wav2vec2 / WavLM / Whisper |
+| `src/train_final.py` | Fit the final age and gender models on the V4 features and save them to `models/` |
+| `src/predict.py` | Score any audio file with the shipped model: age in years and gender |
+| `models/eiry_v4.joblib` | The fitted final model (ridge + logistic regression on WavLM layer 5) |
 | `src/regress_age.py` | Age regression: per-layer CV, test-split metrics, leave-one-language-out |
 | `src/probe_layers.py` | Per-layer classification probes with gender-stratified and test-split reports |
 | `src/finetune.py` | Two-stage fine-tuning with class-weighted loss (V2) |

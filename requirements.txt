@@ -8,6 +8,7 @@ speechbrain
 librosa
 scikit-learn>=1.4
 scipy
+joblib
 pandas
 numpy
 matplotlib
