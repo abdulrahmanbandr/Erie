@@ -1,21 +1,11 @@
-# data and derived artifacts
+# data and features created by the pipeline
 data/
-*.tar
-*.mp3
 *.npz
 *.npy
 *.pkl
-/*.csv
-
-# training runs and model caches
-runs/
-w2v2_age*/
-ft_*/
-tmp_ecapa/
+*.tar
 
 # python
 __pycache__/
-.ipynb_checkpoints/
-.DS_Store
-
 .venv/
+.DS_Store

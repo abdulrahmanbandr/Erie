@@ -1,69 +1,28 @@
-"""Shared constants and loaders for the V2 / V3 scripts."""
+"""Settings and helpers shared by every script."""
 
-import pickle
+import os
 
+import numpy as np
 import pandas as pd
 
-SR = 16000
-SEED = 42
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(ROOT, "data")
+METADATA = os.path.join(DATA_DIR, "metadata.csv")
+SPLITS = os.path.join(DATA_DIR, "splits.csv")
+FEATURES = os.path.join(DATA_DIR, "features.npz")
+MODEL_FILE = os.path.join(ROOT, "models", "eiry.joblib")
+METRICS = os.path.join(ROOT, "results", "metrics.json")
 
-# Raw Common Voice bins. "50+" is the merged bin written by the old V1 data_prep.
-OLDER_BINS = ["fifties", "sixties", "seventies", "eighties", "nineties", "50+"]
+SR = 16000                          # sample rate the encoder expects
+CLIP_SEC = 6.0                      # clip length in training, window length in prediction
+SEED = 42
+ENCODER = "microsoft/wavlm-base-plus"
+LAYER = 5                           # age information peaks in the middle layers
+
+# Common Voice labels age in decade bins; the regression target is the bin midpoint.
 AGE_MIDPOINTS = {"teens": 16.0, "twenties": 25.0, "thirties": 35.0, "fourties": 45.0,
                  "fifties": 55.0, "sixties": 65.0, "seventies": 75.0, "eighties": 85.0,
-                 "nineties": 92.0, "50+": 60.0}
-
-# Age schemes: raw Common Voice bin -> class. Class lists are in ordinal order.
-AGE_SCHEMES = {
-    "fine4": {
-        "map": {"teens": "teens", "twenties": "twenties",
-                "thirties": "thirties", "fourties": "fourties"},
-        "classes": ["teens", "twenties", "thirties", "fourties"],
-    },
-    "coarse3": {
-        "map": {"teens": "young", "twenties": "adult", "thirties": "adult",
-                "fourties": "adult", **{b: "older" for b in OLDER_BINS}},
-        "classes": ["young", "adult", "older"],
-    },
-    # proof-of-concept variant: twenties left out as a buffer between young and adult
-    "coarse3_gap": {
-        "map": {"teens": "young", "thirties": "adult", "fourties": "adult",
-                **{b: "older" for b in OLDER_BINS}},
-        "classes": ["young", "adult", "older"],
-    },
-}
-DEFAULT_SCHEME = "fine4"
-CLASSES = AGE_SCHEMES[DEFAULT_SCHEME]["classes"]   # backwards compatibility
-
-
-def classes_for(scheme: str) -> list:
-    return AGE_SCHEMES[scheme]["classes"]
-
-
-def load_splits(path: str, scheme: str | None = None) -> pd.DataFrame:
-    """Load the split CSV written by make_splits.py.
-
-    With scheme=None every row is returned unchanged (audio cache and
-    feature extraction work on all rows, in CSV order). With a scheme,
-    columns age_class / label / is_female / keep are added and the frame
-    is still returned unfiltered so that row order matches feature arrays.
-    Callers filter with df[df.keep].
-    """
-    df = pd.read_csv(path)
-    if scheme is None:
-        return df
-    spec = AGE_SCHEMES[scheme]
-    df["age_class"] = df.age_group.map(spec["map"])
-    df["keep"] = df.age_class.notna()
-    df["label"] = df.age_class.map({c: i for i, c in enumerate(spec["classes"])})
-    df["is_female"] = df.gender.str.startswith("female")
-    return df
-
-
-def load_cache(path: str) -> dict:
-    """Load the decoded-audio cache written by cache_audio.py."""
-    with open(path, "rb") as f:
-        return pickle.load(f)
+                 "nineties": 92.0}
 
 
 def get_device() -> str:
@@ -73,3 +32,33 @@ def get_device() -> str:
     if torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def load_encoder(name: str = ENCODER):
+    from transformers import AutoFeatureExtractor, AutoModel
+    device = get_device()
+    fe = AutoFeatureExtractor.from_pretrained(name)
+    enc = AutoModel.from_pretrained(name).to(device).eval()
+    return fe, enc, device
+
+
+def embed(audio: np.ndarray, fe, enc, device: str, layer: int = LAYER) -> np.ndarray:
+    """Hidden states of one encoder layer, averaged over time: one 768-d vector."""
+    import torch
+    with torch.no_grad():
+        x = fe(audio.astype(np.float32), sampling_rate=SR,
+               return_tensors="pt").input_values.to(device)
+        h = enc(x, output_hidden_states=True).hidden_states[layer]
+    return h[0].mean(0).float().cpu().numpy()
+
+
+def load_dataset(splits: str = SPLITS, features: str = FEATURES):
+    """Split table and feature matrix with matching rows, plus encoder info."""
+    df = pd.read_csv(splits)
+    data = np.load(features)
+    row = {name: i for i, name in enumerate(data["path"])}
+    df = df[df.path.isin(row)].reset_index(drop=True)
+    X = data["X"][df.path.map(row).values]
+    df["age"] = df.age_group.map(AGE_MIDPOINTS)
+    df["is_female"] = df.gender.str.startswith("female")
+    return df, X, {"encoder": str(data["encoder"]), "layer": int(data["layer"])}

@@ -1,9 +1,9 @@
-"""Predict age and gender for one or more audio files with the final model.
+"""Estimate age and gender from audio files with the trained model.
 
-Needs only the repo: the fitted models in models/eiry_v4.joblib and the
-WavLM encoder, which downloads on first use. Each clip is cut into
-6-second windows, every window is scored, and the predictions are
-averaged, the same speaker-level averaging used in the evaluation.
+Each recording is cut into 6-second windows, every window is scored and
+the predictions are averaged. Windows shorter than 1 second are skipped.
+
+    python src/predict.py clip.wav [more files ...]
 """
 
 import argparse
@@ -13,65 +13,48 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import SR, get_device  # noqa: E402
-
-WINDOW_SEC = 6.0
-DEFAULT_MODEL = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                             "models", "eiry_v4.joblib")
+from common import CLIP_SEC, MODEL_FILE, SR, embed, load_encoder  # noqa: E402
 
 
-def load_encoder(name):
-    import torch
-    from transformers import AutoFeatureExtractor, AutoModel
-    device = get_device()
-    fe = AutoFeatureExtractor.from_pretrained(name)
-    enc = AutoModel.from_pretrained(name).to(device).eval()
-    return fe, enc, device
-
-
-def embed_windows(path, fe, enc, device, layer):
-    """Mean-pooled features of one encoder layer for each 6 s window."""
-    import librosa
-    import torch
-    audio, _ = librosa.load(path, sr=SR, mono=True)
-    n = int(WINDOW_SEC * SR)
-    starts = list(range(0, max(1, len(audio) - n // 2), n)) or [0]
-    feats = []
-    with torch.no_grad():
-        for s in starts:
-            chunk = audio[s:s + n]
-            if len(chunk) < SR:                    # skip windows under 1 s
-                continue
-            x = fe(chunk, sampling_rate=SR, return_tensors="pt").input_values.to(device)
-            h = enc(x, output_hidden_states=True).hidden_states[layer]
-            feats.append(h[0].mean(0).float().cpu().numpy())
-    return np.stack(feats), len(audio) / SR
+def windows(audio: np.ndarray) -> list:
+    n = int(CLIP_SEC * SR)
+    starts = range(0, max(1, len(audio) - n // 2), n)
+    return [audio[s:s + n] for s in starts if len(audio[s:s + n]) >= SR]
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("audio", nargs="+", help="audio file(s): wav, mp3, m4a, opus, flac ...")
-    parser.add_argument("--model-file", default=DEFAULT_MODEL)
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("audio", nargs="+", help="audio file(s): wav, mp3, flac, ogg, m4a ...")
+    parser.add_argument("--model-file", default=MODEL_FILE)
     args = parser.parse_args()
 
     import joblib
+    import librosa
     if not os.path.exists(args.model_file):
-        sys.exit(f"model file not found: {args.model_file}\n"
-                 "Create it with: python src/train_final.py (needs the V4 features)")
+        sys.exit(f"model file not found: {args.model_file}")
     models = joblib.load(args.model_file)
-    print(f"model: {os.path.basename(args.model_file)} | {models['encoder']} layer {models['layer']} | "
-          f"trained on {models['n_speakers']} speakers")
     fe, enc, device = load_encoder(models["encoder"])
 
-    print(f"\n{'file':40s} {'length':>7s} {'windows':>7s} {'age':>6s} {'p(female)':>10s}  gender")
+    print(f"\n{'file':32s} {'length':>7s} {'age':>6s} {'p(female)':>10s}  gender")
     for path in args.audio:
-        F, seconds = embed_windows(path, fe, enc, device, models["layer"])
+        name = os.path.basename(path)[:32]
+        try:
+            audio, _ = librosa.load(path, sr=SR, mono=True)
+        except Exception as exc:
+            print(f"{name:32s} could not read the file ({type(exc).__name__})")
+            continue
+        chunks = windows(audio)
+        if not chunks:
+            print(f"{name:32s} too short: needs at least 1 second of audio")
+            continue
+        F = np.stack([embed(c, fe, enc, device, models["layer"]) for c in chunks])
         age = float(np.mean(models["age"].predict(F)))
-        p_f = float(np.mean(models["gender"].predict_proba(F)[:, 1]))
-        label = "female" if p_f >= 0.5 else "male"
-        print(f"{os.path.basename(path)[:40]:40s} {seconds:6.1f}s {len(F):7d} {age:6.1f} {p_f:10.2f}  {label}")
-    print("\nAge is an estimate with a typical error of about 8 years; predictions for the very young"
-          " and very old are pulled toward the middle.")
+        p_female = float(np.mean(models["gender"].predict_proba(F)[:, 1]))
+        gender = "female" if p_female >= 0.5 else "male"
+        print(f"{name:32s} {len(audio) / SR:6.1f}s {age:6.1f} {p_female:10.2f}  {gender}")
+
+    print("\nAge is an estimate: typical error is about 8 years, and very young or"
+          " very old voices are pulled toward the middle.")
 
 
 if __name__ == "__main__":

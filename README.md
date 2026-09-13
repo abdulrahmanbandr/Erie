@@ -1,227 +1,167 @@
 # Voice-Based Age and Gender Estimation Across Languages
 
-Estimating a speaker's age and gender from a few seconds of speech, using
-frozen self-supervised speech representations and linear models, trained
-on Catalan, German and Russian and tested on languages the model has
-never heard.
+Estimate a speaker's age in years and their gender from a short
+recording. The model is trained on 3,169 speakers of Catalan, German and
+Russian, and it also works on languages it was not trained on.
+
+## Quick start
+
+```bash
+pip install -r requirements.txt
+python src/predict.py my_clip.wav
+```
+
+For each file it prints the length, the estimated age in years, the
+probability that the speaker is female, and the resulting gender.
+
+- The trained model is included (`models/eiry.joblib`). The WavLM encoder
+  (about 380 MB) downloads on the first run.
+- Several files at once: `python src/predict.py a.wav b.mp3 c.flac`.
+- Formats: wav, flac, ogg and mp3 work out of the box; m4a and similar
+  formats need [ffmpeg](https://ffmpeg.org) installed.
+- Ten seconds or more of speech gives the steadiest estimate. Typical age
+  error is about 8 years.
 
 ## Results
 
 | Task | Test set | Result |
 |---|---|---|
-| Gender | 634 speakers, 3 languages | **0.95** macro-F1 |
-| Age, in-language | 634 speakers, 3 languages | **8.2 years** MAE per speaker, Spearman **0.84** |
-| Age, unseen language | Catalan held out, 1,385 speakers | **10.7 years** MAE, Spearman **0.81** |
-| Age, unseen language | German held out, 1,138 speakers | **10.6 years** MAE, Spearman **0.77** |
+| Age, speakers not seen in training | 634 speakers, 3 languages | **8.2 years** MAE, Spearman **0.84** |
+| Age, language not seen in training | Catalan, 1,385 speakers | **10.7 years** MAE, Spearman **0.81** |
+| Age, language not seen in training | German, 1,138 speakers | **10.6 years** MAE, Spearman **0.77** |
+| Gender | Russian speakers ¹ | **0.95** macro-F1 |
 
-Guessing the average age gives 16 years of error. Human listeners are
-typically off by about 10 years.
+Scores are per speaker (the average over a speaker's clips). Always
+guessing the average age gives 16 years of error; human listeners are
+typically off by about 10 years. All numbers are in
+[results/metrics.json](results/metrics.json).
 
-![Predicted vs true age](results/figures/v4_age_by_bin.png)
+¹ Gender was measured with 5-fold cross-validation on the Russian train
+and validation speakers, using the same features. `python src/evaluate.py`
+also scores it on the three-language test split.
 
-Error is the same for women and men (9.0 / 9.4 years) and across the
-three training languages (7.9 to 9.7). The model ranks speakers by age
-correctly across the whole range; the very young and very old are pulled
-toward the middle, which is the usual regression behaviour and is
-partly a labelling artefact (Common Voice teens are mostly 17 to 19).
+![Predicted vs true age](results/figures/age_by_bin.png)
 
-## Use the model
+The model orders speakers by age across the whole range, but the
+youngest and oldest are pulled toward the middle. Part of that comes from
+the labels: Common Voice only records decade bins, and the target for
+"teens" is 16 although most teen speakers are 17 to 19.
 
-The fitted model ships with the repo. Scoring a recording needs no training data:
+![Error by age, gender and language](results/figures/error_breakdown.png)
 
-```bash
-pip install -r requirements.txt
-python src/predict.py my_clip.wav        # any format: wav, mp3, m4a, opus, flac
+Error is similar for women and men (9.0 and 9.4 years per clip) and
+across the three languages (7.9 to 9.7).
+
+![Error on an unseen language](results/figures/language_transfer.png)
+
+On a language it has never heard, the model is about 2.5 years less
+accurate. Held-out Russian keeps its 8.1-year error, but its rank
+correlation is lower (0.57) because nearly all Russian speakers are under
+fifty.
+
+## How it works
+
+```
+audio ─► 16 kHz, 6-second windows ─► WavLM-base-plus (frozen) ─► layer 5, averaged over time
+                                                                      │ 768 numbers
+                                                     ┌────────────────┴────────────────┐
+                                              ridge regression                logistic regression
+                                                age in years                      P(female)
+                                                     └───── averaged over windows ─────┘
 ```
 
-The WavLM encoder (380 MB) downloads on first use. The clip is scored in
-6-second windows and the windows are averaged; ten seconds or more of
-speech gives the steadiest estimate. Output is age in years and the
-probability that the speaker is female. Typical age error is about 8 years.
-
-## Method
-
-**Representation.** Mean-pooled hidden states from a frozen
-`microsoft/wavlm-base-plus` encoder. Every layer is probed; age
-information peaks in the middle layers (layer 5 of 12) and the last
-layer is among the worst. This holds for wav2vec2 and Whisper as well.
-
-**Models.** Age: ridge regression on the age-bin midpoint, reported in
-years. Gender: logistic regression. Both on the same 768-d features.
-Fine-tuning the encoder was tried and does not beat the frozen probe
-(see below).
-
-**Speakers, not clips.** Every split is speaker-disjoint. Selection and
-early stopping use a validation split; the test split is scored once.
-Reported numbers are per speaker (mean prediction over a speaker's
-clips) unless stated.
-
-**Transfer test.** Train on two languages, test on every speaker of the
-third, for each language in turn.
+- **Encoder.** `microsoft/wavlm-base-plus` is used as is and never
+  retrained. Age information is strongest in its middle layers, so the
+  model reads layer 5 of 12 instead of the last layer.
+- **Models.** Age: ridge regression on the midpoint of the speaker's age
+  bin. Gender: logistic regression. Fine-tuning the whole encoder was
+  tried and did not do better.
+- **Speakers, not clips.** Every speaker is in exactly one of train,
+  validation or test, so scores always come from voices the model has
+  never heard.
+- **Unseen languages.** Train on two languages, test on every speaker of
+  the third, for each language in turn.
 
 ## Data
 
-Common Voice 21.0, three languages chosen from a label audit of eight
-(`docs/LANGUAGE_AUDIT.md`). Catalan is the only corpus balanced in both
-gender and age; German adds diversity; Russian was the original
-training language.
+[Mozilla Common Voice 21.0](https://commonvoice.mozilla.org), three
+languages:
 
-| | Speakers | Clips |
+| Language | Speakers | Clips |
 |---|---|---|
 | Catalan | 1,385 | 5,392 |
 | German | 1,138 | 4,206 |
 | Russian | 652 | 2,466 |
-| Total | 3,169 | 12,064 |
+| **Total** | **3,169** | **12,064** |
 
-At most 100 speakers per language, age bin and gender; 4 clips per
-speaker; clips truncated to 6 s; speakers whose labels change between
-recordings are dropped. Ages span teens to seventies with 233 to 599
-speakers per decade (eighties and nineties have 18 speakers in total
-and are not interpreted). Only the selected clips are downloaded,
-shard by shard.
+- At most 100 speakers per language, age bin and gender; 4 clips per
+  speaker, each cut to 6 seconds.
+- Speakers whose age or gender label changes between recordings are
+  removed.
+- Every age bin appears in every language, so the model cannot infer age
+  from the language.
+- Ages run from teens to seventies, with 233 to 599 speakers per decade.
+  The eighties and nineties have 18 speakers in total and are not
+  interpreted.
 
-## What did not work, and why
+Why these languages: Catalan is the only large Common Voice corpus
+balanced in both gender and age, with the most speakers over fifty.
+German adds a second language with older speakers. Russian on its own has
+only 31 speakers over fifty; a model trained on it alone kept every
+prediction between 25 and 33.
 
-The project went through four iterations. The failures are documented
-in `docs/EXPERIMENT_LOG.md`; the short version:
+![Speakers per language, age bin and gender](results/figures/speakers_per_cell.png)
 
-| Iteration | Setup | Result | Lesson |
-|---|---|---|---|
-| V1 | Russian only, 4 decade classes, ECAPA embeddings + logistic regression | 0.36 macro-F1 | Age is decodable but decade bins are too fine |
-| V1 | wav2vec2-base fine-tuning, default head | 0.16, collapsed to majority class | Last-layer pooling + shared learning rate + class prior |
-| V2 | Layer-wise probes, wav2vec2 / WavLM / Whisper; fixed fine-tuning recipe | 0.33 to 0.39 for every backbone and regime | The ceiling is in the data, not the model |
-| V3 | Coarse 3-class (young / adult / older) | older class F1 0.00: 31 speakers over fifty | Russian has no age tails |
-| V3 | Age regression, Russian only | 5.7 years MAE but predictions squeezed into 25 to 33 | Same cause |
-| V4 | Catalan + German + Russian, balanced | 8.2 years MAE, full range, transfers to unseen languages | Fix the data first |
-
-## Figures
-
-**Data**
-
-| | |
-|---|---|
-| ![](results/figures/data_language_audit.png) | ![](results/figures/data_russian_vs_v4.png) |
-| Label audit of eight languages: Catalan is the only corpus with both sexes in every decade and a large 50+ population. | What Russian lacked (31 speakers over fifty) and what the V4 set looks like. |
-
-![](results/figures/data_v4_cells.png)
-
-Speakers per language, age bin and gender after the cap of 100 per cell.
-
-**Pipeline**
-
-![](results/figures/pipeline.png)
-
-**Where age lives in the encoders (V2)**
-
-![](results/figures/v2_layer_curves_all.png)
-
-Age peaks in the middle layers of every model and drops at the top; gender is near-perfect at every layer.
-
-**Fine-tuning after the fix (V2)**
-
-![](results/figures/v2_finetune_curves.png)
-
-**The coarse-class dead end (V3)**
-
-| | |
-|---|---|
-| ![](results/figures/v3_coarse3_confusion.png) | ![](results/figures/v3_regress_wavlm.png) |
-| Three classes on Russian: older is unlearnable at 31 speakers, young is confused with adult at the teens/twenties border. | Regression on Russian: better than the mean, but the tails are missing. |
-
-**Final results (V4)**
-
-![](results/figures/v4_error_breakdown.png)
-
-| | |
-|---|---|
-| ![](results/figures/v4_regress_wavlm.png) | ![](results/figures/v4_holdout_language.png) |
-| Per-layer cross-validation error; layer 5 is best. | Error on a language the model never saw, against the predict-the-mean baseline. |
-
-**Across the project**
-
-![](results/figures/progression.png)
-
-Left: every route to decade classification lands at 0.33 to 0.42. Right: age as a number, error and reduction against the baseline, from Russian-only to the multilingual model and its transfer tests.
-
-## Reproduce
+## Train it yourself
 
 ```bash
 pip install -r requirements.txt
 
-# 1. metadata + audio (shard by shard, ~70 GB transferred, ~2 GB kept)
-python src/data_prep.py --langs ca,de,ru
-
-# 2. speaker split, decoded-audio cache, per-layer features
-python src/make_splits.py --csv all_age.csv --out splits_v4.csv
-python src/cache_audio.py --splits splits_v4.csv
-python src/extract_layers.py --model microsoft/wavlm-base-plus --splits splits_v4.csv
-
-# 3. age regression: per-layer CV, test split, then leave-one-language-out
-python src/regress_age.py --features layers_wavlm-base-plus.npy --splits splits_v4.csv
-python src/regress_age.py --features layers_wavlm-base-plus.npy --splits splits_v4.csv --holdout-lang all --layer 5
-
-# 4. classification probes (age schemes: fine4 / coarse3 / coarse3_gap; gender always)
-python src/probe_layers.py --features layers_wavlm-base-plus.npy --splits splits_v4.csv --scheme fine4
+python src/download_data.py      # 1. pick speakers and download their clips (~70 GB transferred, ~2 GB kept)
+python src/make_splits.py        # 2. train / val / test split by speaker
+python src/extract_features.py   # 3. WavLM features for every clip (a GPU helps)
+python src/evaluate.py           # 4. scores on unseen speakers and languages -> results/metrics.json
+python src/train.py              # 5. fit on every speaker -> models/eiry.joblib
 ```
 
-# 5. fit and save the final model that predict.py uses
-python src/train_final.py
+Intermediate files go to `data/`, which is not committed. Every script
+has `--help`; for example `download_data.py --langs` takes any Common
+Voice language codes.
 
-Steps 2 and 3 take about 20 minutes on a T4. Step 1 is dominated by
-the download. The V1 pipeline (`extract_embeddings.py`,
-`train_baseline.py`) and the fine-tuning script (`finetune.py`) are
-kept for the earlier experiments.
+## Project structure
 
-## Repository structure
+```
+├── models/eiry.joblib        trained age and gender model, loaded by predict.py
+├── results/
+│   ├── metrics.json          the numbers in this README
+│   └── figures/
+├── src/
+│   ├── predict.py            estimate age and gender for audio files
+│   ├── download_data.py      step 1: select speakers, download clips
+│   ├── make_splits.py        step 2: train / val / test split by speaker
+│   ├── extract_features.py   step 3: audio to WavLM layer-5 features
+│   ├── evaluate.py           step 4: scores on unseen speakers and languages
+│   ├── train.py              step 5: fit and save the final model
+│   └── common.py             shared settings: paths, encoder, layer, age bins
+├── requirements.txt
+└── LICENSE
+```
 
-| Path | Contents |
-|---|---|
-| `src/data_prep.py` | Balanced speaker selection and shard-wise audio download for any set of languages |
-| `src/audit_languages.py` | Speaker counts per age bin and gender for a language, from the remote label tables |
-| `src/make_splits.py` | Speaker-disjoint train / val / test split |
-| `src/cache_audio.py` | Decode clips once to a cache |
-| `src/extract_layers.py` | Mean-pooled hidden states from every layer of wav2vec2 / WavLM / Whisper |
-| `src/train_final.py` | Fit the final age and gender models on the V4 features and save them to `models/` |
-| `src/predict.py` | Score any audio file with the shipped model: age in years and gender |
-| `models/eiry_v4.joblib` | The fitted final model (ridge + logistic regression on WavLM layer 5) |
-| `src/regress_age.py` | Age regression: per-layer CV, test-split metrics, leave-one-language-out |
-| `src/probe_layers.py` | Per-layer classification probes with gender-stratified and test-split reports |
-| `src/finetune.py` | Two-stage fine-tuning with class-weighted loss (V2) |
-| `src/extract_embeddings.py`, `src/train_baseline.py` | ECAPA baseline (V1) |
-| `src/eval_adyghe.py` | Pre-registered evaluation for a low-resource target language (not run, see below) |
-| `src/common.py` | Age schemes, regression targets, loaders |
-| `notebooks/` | Colab run of the V2 experiments with outputs |
-| `results/v1` … `results/v4` | Metrics as JSON for every experiment |
-| `results/figures/` | Probe curves, loss curves, age-by-bin and transfer plots |
-| `docs/EXPERIMENT_LOG.md` | Every run, including failed ones, with diagnosis |
-| `docs/LANGUAGE_AUDIT.md` | Label counts per language and the data decision |
+`scikit-learn` is pinned to 1.6.1, the version that saved
+`models/eiry.joblib`; other versions warn when loading it.
 
 ## Limitations
 
-- Age labels are self-reported decade bins; the regression target is
-  the bin midpoint, so part of the reported error is label uncertainty.
-- Voice carries age at roughly a decade of resolution. Classification
-  into bins narrower than that fails at the bin borders.
-- No children: Common Voice has no speakers under 13, and the `teens`
-  bin cannot be split.
-- Transfer was measured on three European languages. Behaviour on
-  typologically distant languages or on different recording conditions
-  is untested.
-- Frozen features and linear models only; no end-to-end training.
+- Age labels are self-reported decade bins and the target is the bin
+  midpoint, so part of the error is label uncertainty.
+- Voice carries age to roughly a decade; finer distinctions are not
+  reliable.
+- No children: Common Voice has no speakers under 13.
+- Tested on three European languages recorded through the Common Voice
+  website. Distant languages and other recording conditions are untested.
 
-## Future work
+## License
 
-The original target was Adyghe (West Circassian), an endangered
-Northwest Caucasian language with 168 speakers in Common Voice 26.0.
-It cannot serve as training data (one male speaker, age labels
-female-only) and its audio is not on any public mirror. The evaluation
-protocol is pre-registered in the experiment log and implemented in
-`src/eval_adyghe.py`: zero-shot error with bootstrap intervals and a
-permutation test, few-shot linear calibration, a within-language
-reference and a gender specificity check.
-
-## License and terms
-
-Data: Mozilla Common Voice, CC0. Common Voice terms prohibit attempting
-to determine speaker identity; this project estimates demographic
-attributes and never identifies speakers.
+Code: MIT, see [LICENSE](LICENSE). Data: Mozilla Common Voice, CC0.
+Common Voice terms prohibit attempting to identify speakers; this project
+estimates age and gender and never identifies anyone.
