@@ -22,6 +22,17 @@ probability that the speaker is female, and the resulting gender.
 - Ten seconds or more of speech gives the steadiest estimate. Typical age
   error is about 8 years.
 
+## Try it in the browser
+
+A small local demo: record with the microphone or upload a clip, get age and gender.
+
+```bash
+python app.py
+```
+
+Then open http://127.0.0.1:7860. Everything runs on your machine; nothing is uploaded.
+The page follows your system's light or dark setting.
+
 ## Results
 
 | Task | Test set | Result |
